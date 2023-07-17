@@ -1,14 +1,13 @@
-import openWindow
-import login
-import csv_to_json
+import json
+
+import bit_browser_request
+import browser_operate
 
 
 def main(value, input_value):
-    response_data = openWindow.send_post_request(value['id'])
+    response_data = bit_browser_request.send_post_request(value['id'])
     driver_path = response_data['data']['driver']
     debugger_address = response_data['data']['http']
     print(driver_path)
     print(debugger_address)
-    login.login(driver_path, debugger_address, value['password'], input_value)
-
-
+    browser_operate.login(driver_path, debugger_address, value['metamask'], input_value)

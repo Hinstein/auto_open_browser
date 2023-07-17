@@ -3,8 +3,9 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QTableWidget, QTa
     QPushButton, QHeaderView, QCheckBox, QLineEdit, QHBoxLayout
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt
-from tinydb import TinyDB
+from tinydb import TinyDB, Query
 
+import bit_browser_request
 import init_data
 import main
 
@@ -21,7 +22,7 @@ class MainWindow(QMainWindow):
 
         layout = self.init_windows()
 
-        json_data = db.all()
+        json_data = sorted(db.all(), key=lambda item: item['seq'])
 
         # 关闭数据库连接
         db.close()
@@ -55,7 +56,7 @@ class MainWindow(QMainWindow):
             # 设置按钮样式
             button.setStyleSheet("background-color: lightblue;")
             # 连接点击事件的槽函数
-            button.clicked.connect(lambda checked, seq=item['seq']: self.print_seq(seq, map_data))
+            button.clicked.connect(lambda checked, seq=item['seq']: self.open_single_browser(seq))
             # 将按钮添加到表格中
             self.table.setCellWidget(row, 4, button)
 
@@ -108,7 +109,7 @@ class MainWindow(QMainWindow):
 
         # 创建按钮用于批量打开
         self.output_button = QPushButton("批量打开")
-        self.output_button.clicked.connect(lambda: self.output_selected_seq(map_data))
+        self.output_button.clicked.connect(self.open_multiple_browsers)
         self.output_button.setStyleSheet("background-color: lightblue;")
         layout.addWidget(self.output_button)
 
@@ -144,22 +145,21 @@ class MainWindow(QMainWindow):
         self.table.setHorizontalHeaderLabels(["选择", "浏览器序列", "浏览器ID", "小狐狸密码", "Action"])
         return layout
 
-    def init_data(self):
-        print('init 数据开始')
-        db = TinyDB('data.json')
-        init_data.init_data(db)
-        # 关闭数据库连接
-        db.close()
-
-    def print_seq(self, seq, map):
-        # message_box = QMessageBox()
-        # message_box.setText(f"正在打开序号为: {seq}，的浏览器，请稍等！")
-        # message_box.exec()
+    def open_single_browser(self, seq):
         print(f"正在打开序号为: {seq}，的浏览器，请稍等！")
         input_value = self.input_box.text()
-        print("本次打开的网址是:", input_value)
-        value = map.get(seq)
-        main.main(value, input_value)
+
+        # 创建 TinyDB 实例并加载数据文件
+        db = TinyDB('data.json')
+        # 创建查询条件
+        query = Query()
+        result = db.search(query.seq == seq)
+        # 打印查询结果
+        print(result)
+        # 关闭数据库连接
+        db.close()
+        for item in result:
+            main.main(item, input_value)
 
     def toggle_select_all(self, state):
         check_state = Qt.CheckState.Checked if state else Qt.CheckState.Unchecked
@@ -170,7 +170,7 @@ class MainWindow(QMainWindow):
                 checkbox_item.setCheckState(check_state)
                 self.table.setItem(row, 0, checkbox_item)
 
-    def output_selected_seq(self, data):
+    def open_multiple_browsers(self):
         selected_seqs = []
         for row in range(self.table.rowCount()):
             checkbox_item = self.table.item(row, 0)
@@ -180,7 +180,7 @@ class MainWindow(QMainWindow):
 
         print("正在批量打开浏览器:", selected_seqs)
         for num in selected_seqs:
-            self.print_seq(num, data)
+            self.open_single_browser(int(num))
 
     def save_data(self):
         data = []
@@ -211,6 +211,39 @@ class MainWindow(QMainWindow):
             # 返回数据
 
         return result
+
+    def init_data(db):
+        # 插入数据
+        ori_data = bit_browser_request.browser_list()
+        datajson = ori_data['data']['list']
+
+        # 指定要筛选的字段
+        fieldnames = ['id', 'seq']
+
+        # 查询数据
+        User = Query()
+
+        # 对于每个字典，筛选出指定字段的键值对，构造新的字典
+        for item in datajson:
+            filtered_item = {key: item[key] for key in fieldnames}
+
+            # 添加新的键，并将其值设置为空
+            filtered_item['metamask'] = None
+
+            # 查询是否已存在相同的seq
+            existing_doc = db.get(User.seq == item['seq'])
+
+            if existing_doc is None:
+                # 不存在相同的seq，则插入文档
+                db.insert(filtered_item)
+            else:
+                # 存在相同的seq，则不更新文档
+                print(f"Document with seq {item['seq']} already exists, skipping update.")
+
+        all_data = db.all()
+        # 打印查询结果
+        for document in all_data:
+            print(document)
 
 
 if __name__ == "__main__":

@@ -1,16 +1,15 @@
-import requests
 from tinydb import TinyDB, Query
 
-import initPassword
+import bit_browser_request
 
 url = "http://127.0.0.1:54345"
 headers = {'Content-Type': 'application/json'}
 
+
 def init_data(db):
     # 插入数据
-    ori_data = initPassword.browserList()
+    ori_data = bit_browser_request.browser_list()
     datajson = ori_data['data']['list']
-    print(datajson)
 
     # 指定要筛选的字段
     fieldnames = ['id', 'seq']
@@ -40,12 +39,12 @@ def init_data(db):
     for document in all_data:
         print(document)
 
-
-# 创建数据库实例
-db = TinyDB('data.json')
-
-# 调用 init_data() 函数，并传递数据库实例作为参数
-init_data(db)
-
-# 关闭数据库连接
-db.close()
+#
+# # 创建数据库实例
+# db = TinyDB('data.json')
+#
+# # 调用 init_data() 函数，并传递数据库实例作为参数
+# init_data(db)
+#
+# # 关闭数据库连接
+# db.close()
