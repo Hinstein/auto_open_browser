@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         screen_width = QApplication.primaryScreen().size().width()
         screen_height = QApplication.primaryScreen().size().height()
         # 计算窗口的坐标位置
-        window_width = 900
+        window_width = 710
         window_height = 450
         x = (screen_width - window_width) // 2
         y = (screen_height - window_height) // 2
@@ -87,7 +87,6 @@ class MainWindow(QMainWindow):
         # 创建按钮用于保存数据
         self.save_button = QPushButton("保存数据")
         self.save_button.clicked.connect(self.save_data)
-        self.save_button.setStyleSheet("background-color: lightblue;")
         layout.addWidget(self.save_button)
 
         # 设置窗口的大小和位置
