@@ -6,59 +6,19 @@ from PyQt6.QtCore import Qt
 from tinydb import TinyDB, Query
 
 import bit_browser_request
-import init_data
 import main
-
-
-# todo 没有解决map问题，还是通过json转map，可以转换成直接通过数据库获取id
-# 没有解决分批获取比特浏览器的数据问题
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        db = TinyDB('data.json')
+        self.table = QTableWidget()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["选择", "浏览器序列", "浏览器ID", "小狐狸密码", "Action"])
+        self.table.verticalHeader().setVisible(False)
 
         layout = self.init_windows()
-
-        json_data = sorted(db.all(), key=lambda item: item['seq'])
-
-        # 关闭数据库连接
-        db.close()
-
-        map_data = self.json_to_map(json_data)
-
-        self.table.setRowCount(len(json_data))
-
-        for row, item in enumerate(json_data):
-            id_item = QTableWidgetItem(item['id'])
-            seq_item = QTableWidgetItem(str(item['seq']))
-            password_item = QTableWidgetItem(item.get('metamask', ''))
-
-            checkbox_item = QTableWidgetItem()
-            checkbox_item.setFlags(checkbox_item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
-            checkbox_item.setCheckState(QtCore.Qt.CheckState.Unchecked)
-
-            seq_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            self.table.setItem(row, 0, checkbox_item)
-            self.table.setItem(row, 1, seq_item)
-            self.table.setItem(row, 2, id_item)
-            self.table.setItem(row, 3, password_item)
-
-            # 禁用编辑
-            seq_item.setFlags(seq_item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
-            id_item.setFlags(id_item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
-
-            # 创建按钮
-            button = QPushButton("点击打开")
-            # 设置按钮样式
-            button.setStyleSheet("background-color: lightblue;")
-            # 连接点击事件的槽函数
-            button.clicked.connect(lambda checked, seq=item['seq']: self.open_single_browser(seq))
-            # 将按钮添加到表格中
-            self.table.setCellWidget(row, 4, button)
 
         # 设置表格自适应大小
         self.table.resizeColumnsToContents()
@@ -66,19 +26,12 @@ class MainWindow(QMainWindow):
 
         # 设置表头为自适应模式
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # 设置选择列宽度为固定大小
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # 设置浏览器序列列宽度为自动拉伸
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # 设置浏览器ID列宽度为自动拉伸
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # 设置小狐狸密码列宽度为自动拉伸
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)  # 设置Action列宽度为固定大小
-
-        # 设置列宽度
-        self.table.setColumnWidth(0, 30)  # 设置选择列宽度
-        self.table.setColumnWidth(1, 70)  # 设置选择列宽度
-        self.table.setColumnWidth(4, 150)  # 设置Action列宽度
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)  # 设置列宽度可调整
 
         # 并将表格添加到布局中
         layout.addWidget(self.table)
+
+        self.refresh_table_data()
 
         # 创建中心窗口部件并设置布局
         central_widget = QWidget()
@@ -128,7 +81,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         # 创建按钮用于批量打开
         self.output_button = QPushButton("数据初始化")
-        self.output_button.clicked.connect(lambda: self.init_data())
+        self.output_button.clicked.connect(self.init_data)
         layout.addWidget(self.output_button)
 
         # 创建按钮用于保存数据
@@ -139,10 +92,18 @@ class MainWindow(QMainWindow):
 
         # 设置窗口的大小和位置
         self.setGeometry(x, y, window_width, window_height)
-        # 创建表格
-        self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["选择", "浏览器序列", "浏览器ID", "小狐狸密码", "Action"])
+
+        # 设置列宽度
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # 设置选择列宽度为固定大小
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # 设置浏览器序列列宽度为自动拉伸
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)  # 设置浏览器ID列宽度为自动拉伸
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)  # 设置小狐狸密码列宽度为自动拉伸
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)  # 设置Action列宽度为固定大小
+
+        header.setDefaultSectionSize(150)  # 设置默认列宽度
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)  # 设置列宽度可调整
+
         return layout
 
     def open_single_browser(self, seq):
@@ -212,38 +173,80 @@ class MainWindow(QMainWindow):
 
         return result
 
-    def init_data(db):
-        # 插入数据
+    def init_data(self):
+        db = TinyDB('data.json')
+
+        # 保存id对应的metamask数据为一个字典
+        id_metamask_map = {}
+        all_data = db.all()
+        for item in all_data:
+            id_metamask_map[item['id']] = item['metamask']
+
+        # 删除旧的data.json文件
+        db.truncate()
+
+        # 获取新的数据
         ori_data = bit_browser_request.browser_list()
         datajson = ori_data['data']['list']
 
         # 指定要筛选的字段
         fieldnames = ['id', 'seq']
 
-        # 查询数据
-        User = Query()
-
-        # 对于每个字典，筛选出指定字段的键值对，构造新的字典
+        # 循环遍历每个字典，筛选出指定字段的键值对，构造新的字典，并更新metamask数据
         for item in datajson:
             filtered_item = {key: item[key] for key in fieldnames}
-
-            # 添加新的键，并将其值设置为空
-            filtered_item['metamask'] = None
-
-            # 查询是否已存在相同的seq
-            existing_doc = db.get(User.seq == item['seq'])
-
-            if existing_doc is None:
-                # 不存在相同的seq，则插入文档
-                db.insert(filtered_item)
+            id = filtered_item['id']
+            if id in id_metamask_map:
+                item['metamask'] = id_metamask_map[id]
             else:
-                # 存在相同的seq，则不更新文档
-                print(f"Document with seq {item['seq']} already exists, skipping update.")
+                item['metamask'] = None
 
-        all_data = db.all()
-        # 打印查询结果
-        for document in all_data:
-            print(document)
+        # 将新的数据插入到数据库
+        db.insert_multiple(datajson)
+        db.close()
+
+        # 刷新表格数据
+        self.refresh_table_data()
+
+    def refresh_table_data(self):
+        db = TinyDB('data.json')
+        json_data = sorted(db.all(), key=lambda item: item['seq'])
+        db.close()
+
+        self.table.setRowCount(len(json_data))
+
+        for row, item in enumerate(json_data):
+            id_item = QTableWidgetItem(item['id'])
+            seq_item = QTableWidgetItem(str(item['seq']))
+            password_item = QTableWidgetItem(item.get('metamask', ''))
+
+            checkbox_item = QTableWidgetItem()
+            checkbox_item.setFlags(checkbox_item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
+            checkbox_item.setCheckState(QtCore.Qt.CheckState.Unchecked)
+
+            seq_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            self.table.setItem(row, 0, checkbox_item)
+            self.table.setItem(row, 1, seq_item)
+            self.table.setItem(row, 2, id_item)
+            self.table.setItem(row, 3, password_item)
+
+            seq_item.setFlags(seq_item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+            id_item.setFlags(id_item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+
+            button = QPushButton("点击打开")
+            button.setStyleSheet("background-color: lightblue;")
+            button.clicked.connect(lambda checked, seq=item['seq']: self.open_single_browser(seq))
+            self.table.setCellWidget(row, 4, button)
+
+        # 设置列宽度
+        self.table.setColumnWidth(0, 30)  # 设置选择列宽度
+        self.table.setColumnWidth(1, 70)  # 设置浏览器序列列宽度
+        self.table.setColumnWidth(2, 280)  # 设置浏览器ID列宽度
+        self.table.setColumnWidth(3, 150)  # 设置小狐狸密码列宽度
+        self.table.setColumnWidth(4, 150)  # 设置Action列宽度
+
+        self.table.resizeRowsToContents()
 
 
 if __name__ == "__main__":
