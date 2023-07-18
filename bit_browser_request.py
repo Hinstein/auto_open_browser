@@ -16,7 +16,7 @@ def open_browser(id):  # 直接指定ID打开窗口，也可以使用 createBrow
 def browser_list():
     json_data = {
         "page": 0,
-        "pageSize": 10
+        "pageSize": 100
     }
     res = requests.post(f"{url}/browser/list",
                         data=json.dumps(json_data), headers=headers).json()
