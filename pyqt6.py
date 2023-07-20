@@ -147,11 +147,11 @@ class MainWindow(QMainWindow):
         for row in range(self.table.rowCount()):
             seq_item = self.table.item(row, 1)
             id_item = self.table.item(row, 2)
-            password_item = self.table.item(row, 3)
-            if seq_item and id_item and password_item:
+            password_edit = self.table.cellWidget(row, 3)
+            password = password_edit.text()
+            if seq_item and id_item and password_edit:
                 seq = int(seq_item.text())
                 id = id_item.text()
-                password = password_item.text()
                 data.append({'seq': seq, 'id': id, 'metamask': password})
 
         db = TinyDB('data.json')
@@ -217,7 +217,11 @@ class MainWindow(QMainWindow):
         for row, item in enumerate(json_data):
             id_item = QTableWidgetItem(item['id'])
             seq_item = QTableWidgetItem(str(item['seq']))
-            password_item = QTableWidgetItem(item.get('metamask', ''))
+
+            password_edit = QLineEdit()
+            password_edit.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
+            password_edit.setText(item.get('metamask', ''))
+            password_item = self.table.setCellWidget(row, 3, password_edit)
 
             checkbox_item = QTableWidgetItem()
             checkbox_item.setFlags(checkbox_item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
